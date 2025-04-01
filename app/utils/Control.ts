@@ -1,0 +1,31 @@
+// app/utils/Control.ts
+import io from 'socket.io-client';
+
+
+//const SOCKET_SERVER_URL = 'http://192.168.0.17:3000';
+const SOCKET_SERVER_URL = 'http://192.168.192.100:3000';
+
+const socket = io(SOCKET_SERVER_URL, {
+    transports: ['websocket'],
+});
+
+socket.on('connect', () => {
+    console.log('Connected to server via Socket.io');
+});
+socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+});
+
+// 已有的 updateFader 函数…
+export const updateFader = (fader: number, value: number) => {
+    console.log(`Sending fader update => fader: ${fader}, value: ${value}`);
+    socket.emit('updateFader', { fader, value });
+};
+
+// 新增：仅发送位置坐标到服务器
+export const updateSourceCoord = (x: number, y: number) => {
+    console.log(`Sending source coordinates: x=${x}, y=${y}`);
+    socket.emit('updateSource', { x, y });
+};
+
+export default socket;

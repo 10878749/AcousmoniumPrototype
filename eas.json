@@ -1,0 +1,22 @@
+{
+  "build": {
+    "development": {
+      "ios": {
+        "simulator": false,
+        "autoIncrement": true
+      },
+      "android": {}
+    },
+    "production": {
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  },
+  "cli": {
+    "appVersionSource": "remote"
+  }
+}
