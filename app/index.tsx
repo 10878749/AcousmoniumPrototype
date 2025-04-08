@@ -1,5 +1,5 @@
 // app/index.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     StyleSheet,
     View,
@@ -7,6 +7,7 @@ import {
     TouchableWithoutFeedback,
     TouchableOpacity,
     Text,
+    PanResponder,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Rect } from 'react-native-svg';
@@ -40,7 +41,7 @@ const FloorPlanScreen: React.FC = () => {
     const { width, height } = Dimensions.get('window');
 
     // 设置边缘留白：动态取屏幕宽度的5%
-    const MARGIN_RATIO = 0.05;
+    const MARGIN_RATIO = 0.15;
     const MARGIN = width * MARGIN_RATIO;
 
     // 将屏幕分为两部分：上半部分（80%）显示平面图，下半部分（20%）为控制区域
@@ -61,6 +62,20 @@ const FloorPlanScreen: React.FC = () => {
     const [speakers] = useState<SpeakerData[]>(initialSpeakers);
     // 选中扬声器ID数组
     const [selectedSpeakers, setSelectedSpeakers] = useState<string[]>([]);
+    // 保存拖动选择矩形的位置与尺寸
+    const [selectionRect, setSelectionRect] = useState<{
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    } | null>(null);
+
+    // 将扬声器实际坐标转换为屏幕坐标（用于显示），Speaker组件尺寸为50×50，所以做居中调整（减25）
+    const screenSpeakerPositions = speakers.map(sp => {
+        const screenX = offsetX + sp.x * scale;
+        const screenY = offsetY + (HALL_HEIGHT - sp.y) * scale;
+        return { ...sp, screenX, screenY };
+    });
 
     // 单击扬声器：切换选中状态
     const handleSpeakerPress = (id: string) => {
@@ -92,18 +107,67 @@ const FloorPlanScreen: React.FC = () => {
         router.push('/drag');
     };
 
-    // 将扬声器实际坐标转换为屏幕坐标（用于显示），Speaker组件尺寸为50×50，所以做居中调整（减25）
-    const screenSpeakerPositions = speakers.map(sp => {
-        const screenX = offsetX + sp.x * scale;
-        const screenY = offsetY + (HALL_HEIGHT - sp.y) * scale;
-        return { ...sp, screenX, screenY };
-    });
+    // ---- 添加滑动选择逻辑 ----
+    // 用 ref 保存手势开始位置
+    const selectionStartRef = useRef<{ x: number, y: number } | null>(null);
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onPanResponderGrant: (evt) => {
+                const { locationX, locationY } = evt.nativeEvent;
+                selectionStartRef.current = { x: locationX, y: locationY };
+                // 初始化拖动矩形（初始宽高为0）
+                setSelectionRect({ x: locationX, y: locationY, width: 0, height: 0 });
+                setSelectedSpeakers([]);  // 清空当前选中状态，后续根据矩形区域重新计算
+            },
+            onPanResponderMove: (evt) => {
+                const { locationX, locationY } = evt.nativeEvent;
+                if (selectionStartRef.current) {
+                    const start = selectionStartRef.current;
+                    // 计算矩形的左上角和右下角
+                    const rectLeft = Math.min(start.x, locationX);
+                    const rectRight = Math.max(start.x, locationX);
+                    const rectTop = Math.min(start.y, locationY);
+                    const rectBottom = Math.max(start.y, locationY);
+                    // 更新选中矩形状态
+                    setSelectionRect({
+                        x: rectLeft,
+                        y: rectTop,
+                        width: rectRight - rectLeft,
+                        height: rectBottom - rectTop,
+                    });
+
+                    // 根据矩形区域判断哪些扬声器处于区域内（以扬声器中心位置进行判断）
+                    const newSelected = screenSpeakerPositions
+                        .filter(sp => {
+                            return sp.screenX >= rectLeft &&
+                                sp.screenX <= rectRight &&
+                                sp.screenY >= rectTop &&
+                                sp.screenY <= rectBottom;
+                        })
+                        .map(sp => sp.id);
+                    setSelectedSpeakers(newSelected);
+                }
+            },
+            onPanResponderRelease: () => {
+                selectionStartRef.current = null;
+                // 手势结束时将选择矩形隐藏
+                setSelectionRect(null);
+            },
+            onPanResponderTerminate: () => {
+                selectionStartRef.current = null;
+                setSelectionRect(null);
+            },
+        })
+    ).current;
+    // ------------------------------
 
     return (
         <TouchableWithoutFeedback onPress={handleBackgroundPress}>
             <View style={styles.container}>
-                {/* 上半部分：音乐厅平面图 */}
-                <View style={styles.floorPlanContainer}>
+                {/* 上半部分：音乐厅平面图，添加 panResponder 以响应拖动选中 */}
+                <View style={styles.floorPlanContainer} {...panResponder.panHandlers}>
                     <Svg height="100%" width="100%">
                         <Rect
                             x={offsetX}
@@ -115,6 +179,20 @@ const FloorPlanScreen: React.FC = () => {
                             fill="none"
                         />
                     </Svg>
+                    {/* 绘制可见的拖动选择矩形 */}
+                    {selectionRect && (
+                        <View
+                            style={[
+                                styles.selectionRect,
+                                {
+                                    left: selectionRect.x,
+                                    top: selectionRect.y,
+                                    width: selectionRect.width,
+                                    height: selectionRect.height,
+                                },
+                            ]}
+                        />
+                    )}
                     {screenSpeakerPositions.map(sp => (
                         <Speaker
                             key={sp.id}
@@ -167,5 +245,11 @@ const styles = StyleSheet.create({
     buttonText: {
         color: '#fff',
         fontSize: 16,
+    },
+    selectionRect: {
+        position: 'absolute',
+        borderWidth: 1,
+        borderColor: Colors.primary,
+        backgroundColor: 'rgba(0, 0, 255, 0.2)',
     },
 });
