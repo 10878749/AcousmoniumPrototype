@@ -1,5 +1,5 @@
 // app/index.tsx
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState, useContext } from 'react';
 import {
     StyleSheet,
     View,
@@ -14,6 +14,7 @@ import Svg, { Rect } from 'react-native-svg';
 import Speaker from './components/Speaker';
 import Colors from './constants/Colors';
 import { updateFader, updateSourceCoord, updateMute } from './utils/Control';
+import { SpeakerSelectionContext } from './context/SpeakerSelectionContext';
 
 interface SpeakerData {
     id: string;
@@ -55,14 +56,14 @@ const FloorPlanScreen: React.FC = () => {
     const scaleX = availableWidth / HALL_WIDTH;
     const scaleY = availableHeight / HALL_HEIGHT;
     const scale = Math.min(scaleX, scaleY);
-    // 计算偏移量：使音乐厅区域在可用区域内居中
+    // 计算偏移量：使音乐厅区域在可用区域内居中后再加上边缘留白
     const offsetX = MARGIN + (availableWidth - HALL_WIDTH * scale) / 2;
     const offsetY = MARGIN + (availableHeight - HALL_HEIGHT * scale) / 2;
 
     // 保存扬声器数据（用于显示）
     const [speakers] = useState<SpeakerData[]>(initialSpeakers);
-    // 选中扬声器ID数组
-    const [selectedSpeakers, setSelectedSpeakers] = useState<string[]>([]);
+    // 选中扬声器ID数组（修改为使用 Context，保证其他页面返回时状态得以保留）
+    const { selectedSpeakers, setSelectedSpeakers } = useContext(SpeakerSelectionContext);
     // 保存拖动选择矩形的位置与尺寸
     const [selectionRect, setSelectionRect] = useState<{
         x: number;
@@ -166,6 +167,7 @@ const FloorPlanScreen: React.FC = () => {
     };
 
     // ---- 添加滑动选择逻辑 ----
+    // 用 ref 保存手势开始位置
     const selectionStartRef = useRef<{ x: number, y: number } | null>(null);
 
     const panResponder = useRef(
@@ -181,6 +183,7 @@ const FloorPlanScreen: React.FC = () => {
                 const { locationX, locationY } = evt.nativeEvent;
                 if (selectionStartRef.current) {
                     const start = selectionStartRef.current;
+                    // 计算矩形的左上角和右下角
                     const rectLeft = Math.min(start.x, locationX);
                     const rectRight = Math.max(start.x, locationX);
                     const rectTop = Math.min(start.y, locationY);
@@ -204,6 +207,7 @@ const FloorPlanScreen: React.FC = () => {
             },
             onPanResponderRelease: () => {
                 selectionStartRef.current = null;
+                // 手势结束时隐藏选择矩形
                 setSelectionRect(null);
             },
             onPanResponderTerminate: () => {
@@ -217,7 +221,7 @@ const FloorPlanScreen: React.FC = () => {
     return (
         <TouchableWithoutFeedback onPress={handleBackgroundPress}>
             <View style={styles.container}>
-                {/* 上半部分：音乐厅平面图 */}
+                {/* 上半部分：音乐厅平面图，添加 panResponder 以响应拖动选中 */}
                 <View style={styles.floorPlanContainer} {...panResponder.panHandlers}>
                     {/* 顶部显示 “NEXOs” 标签 */}
                     <Text style={styles.topLabel}>NEXOs</Text>
