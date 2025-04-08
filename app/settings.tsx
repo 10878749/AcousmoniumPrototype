@@ -19,12 +19,12 @@ interface SpeakerFaderItem {
 const hardcodedMapping: SpeakerFaderItem[] = [
     { speakerId: 'nexo1', fader: 16 },
     { speakerId: 'nexo2', fader: 17 },
-    { speakerId: 'nexo3', fader: 23 },
-    { speakerId: 'nexo4', fader: 22 },
-    { speakerId: 'nexo5', fader: 18 },
-    { speakerId: 'nexo6', fader: 19 },
-    { speakerId: 'nexo7', fader: 21 },
-    { speakerId: 'nexo8', fader: 20 }
+    { speakerId: 'nexo3', fader: 18 },
+    { speakerId: 'nexo4', fader: 19 },
+    { speakerId: 'nexo5', fader: 20 },
+    { speakerId: 'nexo6', fader: 21 },
+    { speakerId: 'nexo7', fader: 22 },
+    { speakerId: 'nexo8', fader: 23 }
 ];
 
 const SettingsScreen: React.FC = () => {

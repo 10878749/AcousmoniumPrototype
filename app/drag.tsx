@@ -33,7 +33,7 @@ const initialSpeakers: SpeakerData[] = [
     { id: 'nexo5', x: 12.8, y: 0 },
     { id: 'nexo6', x: 2.3,  y: 0 },
     { id: 'nexo7', x: 0,    y: 5.4 },
-    { id: 'nexo8', x: 0,    y: 15.1 },
+    { id: 'nexo8', x: 0,    y: 14 },
 ];
 
 const DragScreen: React.FC = () => {

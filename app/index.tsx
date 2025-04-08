@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import Svg, { Rect } from 'react-native-svg';
 import Speaker from './components/Speaker';
 import Colors from './constants/Colors';
+import { updateFader, updateSourceCoord, updateMute } from './utils/Control';
 
 interface SpeakerData {
     id: string;
@@ -33,14 +34,14 @@ const initialSpeakers: SpeakerData[] = [
     { id: 'nexo5', x: 12.8, y: 0 },
     { id: 'nexo6', x: 2.3,  y: 0 },
     { id: 'nexo7', x: 0,    y: 5.4 },
-    { id: 'nexo8', x: 0,    y: 15.1 },
+    { id: 'nexo8', x: 0,    y: 14 },
 ];
 
 const FloorPlanScreen: React.FC = () => {
     const router = useRouter();
     const { width, height } = Dimensions.get('window');
 
-    // 设置边缘留白：动态取屏幕宽度的5%
+    // 设置边缘留白：动态取屏幕宽度的15%
     const MARGIN_RATIO = 0.15;
     const MARGIN = width * MARGIN_RATIO;
 
@@ -54,7 +55,7 @@ const FloorPlanScreen: React.FC = () => {
     const scaleX = availableWidth / HALL_WIDTH;
     const scaleY = availableHeight / HALL_HEIGHT;
     const scale = Math.min(scaleX, scaleY);
-    // 计算偏移量：使音乐厅区域在可用区域内居中后再加上边缘留白
+    // 计算偏移量：使音乐厅区域在可用区域内居中
     const offsetX = MARGIN + (availableWidth - HALL_WIDTH * scale) / 2;
     const offsetY = MARGIN + (availableHeight - HALL_HEIGHT * scale) / 2;
 
@@ -69,26 +70,42 @@ const FloorPlanScreen: React.FC = () => {
         width: number;
         height: number;
     } | null>(null);
+    // Mute 状态：控制当前选中的扬声器是否处于静音状态
+    const [isMuted, setIsMuted] = useState(false);
+    // 存储已静音的扬声器ID
+    const [mutedSpeakerIds, setMutedSpeakerIds] = useState<string[]>([]);
 
-    // 将扬声器实际坐标转换为屏幕坐标（用于显示），Speaker组件尺寸为50×50，所以做居中调整（减25）
+    // 定义扬声器到 fader 的映射，与服务器端保持一致
+    const speakerToFader: { [key: string]: number } = {
+        nexo1: 16,
+        nexo2: 17,
+        nexo3: 18,
+        nexo4: 19,
+        nexo5: 20,
+        nexo6: 21,
+        nexo7: 22,
+        nexo8: 23,
+    };
+
+    // 将扬声器实际坐标转换为屏幕坐标（用于显示），Speaker 组件尺寸为 50×50，所以做居中调整（减25）
     const screenSpeakerPositions = speakers.map(sp => {
         const screenX = offsetX + sp.x * scale;
         const screenY = offsetY + (HALL_HEIGHT - sp.y) * scale;
         return { ...sp, screenX, screenY };
     });
 
-    // 单击扬声器：切换选中状态
+    // 修改后的单击选择逻辑：如果点击已选中的扬声器，则清空选中；否则仅选中当前扬声器
     const handleSpeakerPress = (id: string) => {
-        setSelectedSpeakers((prev) => {
+        setSelectedSpeakers((prev: string[]) => {
             if (prev.includes(id)) {
-                return prev.filter((s) => s !== id);
+                return [];
             } else {
-                return [...prev, id];
+                return [id];
             }
         });
     };
 
-    // 长按：如果扬声器已选中，则跳转到设置界面，并传递所有选中的ID
+    // 长按：如果扬声器已选中，则跳转到设置页面，并传递所有选中的ID
     const handleSpeakerLongPress = (id: string) => {
         if (!selectedSpeakers.includes(id)) return;
         router.push({
@@ -107,8 +124,48 @@ const FloorPlanScreen: React.FC = () => {
         router.push('/drag');
     };
 
+    // ParChange 按钮点击，逻辑同长按选中的扬声器
+    const handleParChange = () => {
+        if (selectedSpeakers.length > 0) {
+            router.push({
+                pathname: '/settings',
+                params: { speakerIds: selectedSpeakers.join(',') },
+            });
+        }
+    };
+
+    // Mute 按钮点击，发送 mute/unmute 操作给服务器，对选中扬声器进行操作
+    const handleMute = () => {
+        if (selectedSpeakers.length === 0) {
+            console.log("No speakers selected.");
+            return;
+        }
+        if (!isMuted) {
+            // 静音操作：对选中扬声器逐个发送 mute 命令
+            selectedSpeakers.forEach(id => {
+                const fader = speakerToFader[id];
+                if (fader !== undefined) {
+                    updateMute(fader, true);
+                }
+            });
+            // 将这些扬声器标记为静音
+            setMutedSpeakerIds(prev => [...prev, ...selectedSpeakers]);
+            setIsMuted(true);
+        } else {
+            // 取消静音操作
+            selectedSpeakers.forEach(id => {
+                const fader = speakerToFader[id];
+                if (fader !== undefined) {
+                    updateMute(fader, false);
+                }
+            });
+            // 从静音状态中移除这些扬声器
+            setMutedSpeakerIds(prev => prev.filter(id => !selectedSpeakers.includes(id)));
+            setIsMuted(false);
+        }
+    };
+
     // ---- 添加滑动选择逻辑 ----
-    // 用 ref 保存手势开始位置
     const selectionStartRef = useRef<{ x: number, y: number } | null>(null);
 
     const panResponder = useRef(
@@ -117,7 +174,6 @@ const FloorPlanScreen: React.FC = () => {
             onPanResponderGrant: (evt) => {
                 const { locationX, locationY } = evt.nativeEvent;
                 selectionStartRef.current = { x: locationX, y: locationY };
-                // 初始化拖动矩形（初始宽高为0）
                 setSelectionRect({ x: locationX, y: locationY, width: 0, height: 0 });
                 setSelectedSpeakers([]);  // 清空当前选中状态，后续根据矩形区域重新计算
             },
@@ -125,34 +181,29 @@ const FloorPlanScreen: React.FC = () => {
                 const { locationX, locationY } = evt.nativeEvent;
                 if (selectionStartRef.current) {
                     const start = selectionStartRef.current;
-                    // 计算矩形的左上角和右下角
                     const rectLeft = Math.min(start.x, locationX);
                     const rectRight = Math.max(start.x, locationX);
                     const rectTop = Math.min(start.y, locationY);
                     const rectBottom = Math.max(start.y, locationY);
-                    // 更新选中矩形状态
                     setSelectionRect({
                         x: rectLeft,
                         y: rectTop,
                         width: rectRight - rectLeft,
                         height: rectBottom - rectTop,
                     });
-
-                    // 根据矩形区域判断哪些扬声器处于区域内（以扬声器中心位置进行判断）
                     const newSelected = screenSpeakerPositions
-                        .filter(sp => {
-                            return sp.screenX >= rectLeft &&
-                                sp.screenX <= rectRight &&
-                                sp.screenY >= rectTop &&
-                                sp.screenY <= rectBottom;
-                        })
+                        .filter(sp =>
+                            sp.screenX >= rectLeft &&
+                            sp.screenX <= rectRight &&
+                            sp.screenY >= rectTop &&
+                            sp.screenY <= rectBottom
+                        )
                         .map(sp => sp.id);
                     setSelectedSpeakers(newSelected);
                 }
             },
             onPanResponderRelease: () => {
                 selectionStartRef.current = null;
-                // 手势结束时将选择矩形隐藏
                 setSelectionRect(null);
             },
             onPanResponderTerminate: () => {
@@ -166,8 +217,10 @@ const FloorPlanScreen: React.FC = () => {
     return (
         <TouchableWithoutFeedback onPress={handleBackgroundPress}>
             <View style={styles.container}>
-                {/* 上半部分：音乐厅平面图，添加 panResponder 以响应拖动选中 */}
+                {/* 上半部分：音乐厅平面图 */}
                 <View style={styles.floorPlanContainer} {...panResponder.panHandlers}>
+                    {/* 顶部显示 “NEXOs” 标签 */}
+                    <Text style={styles.topLabel}>NEXOs</Text>
                     <Svg height="100%" width="100%">
                         <Rect
                             x={offsetX}
@@ -200,6 +253,7 @@ const FloorPlanScreen: React.FC = () => {
                             x={sp.screenX - 25}
                             y={sp.screenY - 25}
                             selected={selectedSpeakers.includes(sp.id)}
+                            muted={mutedSpeakerIds.includes(sp.id)}
                             onPress={() => handleSpeakerPress(sp.id)}
                             onLongPress={() => handleSpeakerLongPress(sp.id)}
                         />
@@ -208,7 +262,13 @@ const FloorPlanScreen: React.FC = () => {
                 {/* 下半部分：控制区域 */}
                 <View style={styles.controls}>
                     <TouchableOpacity onPress={handleSoundMovement} style={styles.button}>
-                        <Text style={styles.buttonText}>Sound Movement</Text>
+                        <Text style={styles.buttonText}>Sound Move</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleParChange} style={styles.button}>
+                        <Text style={styles.buttonText}>Param Change</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleMute} style={styles.button}>
+                        <Text style={styles.buttonText}>{isMuted ? 'UnMute' : 'Mute'}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -227,13 +287,22 @@ const styles = StyleSheet.create({
     floorPlanContainer: {
         flex: 0.8,
         position: 'relative',
-        // 背景区域半透明
         opacity: 0.8,
+    },
+    topLabel: {
+        position: 'absolute',
+        top: 5,
+        left: 0,
+        right: 0,
+        textAlign: 'center',
+        fontSize: 20,
+        color: Colors.primary,
+        zIndex: 1,
     },
     controls: {
         flex: 0.2,
         flexDirection: 'row',
-        justifyContent: 'center',
+        justifyContent: 'space-evenly',
         alignItems: 'center',
         backgroundColor: Colors.controlBackground,
     },
@@ -241,6 +310,8 @@ const styles = StyleSheet.create({
         padding: 10,
         backgroundColor: Colors.primary,
         borderRadius: 5,
+        width: 120,        // 固定按钮宽度
+        alignItems: 'center',
     },
     buttonText: {
         color: '#fff',
@@ -250,6 +321,6 @@ const styles = StyleSheet.create({
         position: 'absolute',
         borderWidth: 1,
         borderColor: Colors.primary,
-        backgroundColor: 'rgba(0, 0, 255, 0.2)',
+        backgroundColor: 'rgba(0,0,255,0.2)',
     },
 });

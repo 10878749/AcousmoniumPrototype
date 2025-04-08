@@ -1,9 +1,8 @@
 // app/utils/Control.ts
 import io from 'socket.io-client';
 
-
-//const SOCKET_SERVER_URL = 'http://192.168.0.17:3000';
 const SOCKET_SERVER_URL = 'http://192.168.192.100:3000';
+// const SOCKET_SERVER_URL = 'http://192.168.0.17:3000';
 
 const socket = io(SOCKET_SERVER_URL, {
     transports: ['websocket'],
@@ -26,6 +25,12 @@ export const updateFader = (fader: number, value: number) => {
 export const updateSourceCoord = (x: number, y: number) => {
     console.log(`Sending source coordinates: x=${x}, y=${y}`);
     socket.emit('updateSource', { x, y });
+};
+
+// 新增：发送静音/取消静音消息到服务器
+export const updateMute = (fader: number, mute: boolean) => {
+    console.log(`Sending mute update => fader: ${fader}, mute: ${mute}`);
+    socket.emit('updateMute', { fader, mute });
 };
 
 export default socket;
