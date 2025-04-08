@@ -318,7 +318,7 @@ const FloorPlanScreen: React.FC = () => {
             selectedSpeakers.forEach(id => {
                 const fader = speakerToFader[id];
                 if (fader !== undefined) {
-                    updateMute(fader, true);
+                    updateMute(fader, false);
                 }
             });
             setMutedSpeakerIds(prev => [...prev, ...selectedSpeakers]);
@@ -327,7 +327,7 @@ const FloorPlanScreen: React.FC = () => {
             selectedSpeakers.forEach(id => {
                 const fader = speakerToFader[id];
                 if (fader !== undefined) {
-                    updateMute(fader, false);
+                    updateMute(fader, true);
                 }
             });
             setMutedSpeakerIds(prev => prev.filter(id => !selectedSpeakers.includes(id)));
