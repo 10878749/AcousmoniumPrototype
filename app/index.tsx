@@ -1,5 +1,5 @@
 // app/index.tsx
-import React, { useState, useRef, useContext } from 'react';
+import React, { useState, useRef, useContext, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -9,6 +9,8 @@ import {
     Text,
     PanResponder,
     Modal,
+    ScrollView,
+    Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Rect } from 'react-native-svg';
@@ -22,33 +24,75 @@ interface SpeakerData {
     id: string;
     x: number;
     y: number;
+    // 新增：speakerType，用来控制显示图标和颜色；例如 "NEXO", "JBL", "D&B"
+    speakerType?: string;
 }
 
-// 音乐厅实际尺寸（单位：米）
+// 楼厅尺寸保持不变
 const HALL_WIDTH = 15.1;
 const HALL_HEIGHT = 19.4;
 
-// 根据实际测量得到的扬声器坐标（以左下角为原点）
-const initialSpeakers: SpeakerData[] = [
-    { id: 'nexo1', x: 1.8,  y: 19.4 },
-    { id: 'nexo2', x: 13.3, y: 19.4 },
-    { id: 'nexo3', x: 15.1, y: 14 },
-    { id: 'nexo4', x: 15.1, y: 5.4 },
-    { id: 'nexo5', x: 12.8, y: 0 },
-    { id: 'nexo6', x: 2.3,  y: 0 },
-    { id: 'nexo7', x: 0,    y: 5.4 },
-    { id: 'nexo8', x: 0,    y: 14 },
+// 定义各 FloorPlan 的扬声器数据
+
+// FloorPlan 0: NEXOs（原有数据，使用 NEXOs 的选择逻辑）
+const speakers_NEXO: SpeakerData[] = [
+    { id: 'nexo1', x: 1.8,  y: 19.4, speakerType: 'NEXO' },
+    { id: 'nexo2', x: 13.3, y: 19.4, speakerType: 'NEXO' },
+    { id: 'nexo3', x: 15.1, y: 14,   speakerType: 'NEXO' },
+    { id: 'nexo4', x: 15.1, y: 5.4,  speakerType: 'NEXO' },
+    { id: 'nexo5', x: 12.8, y: 0,    speakerType: 'NEXO' },
+    { id: 'nexo6', x: 2.3,  y: 0,    speakerType: 'NEXO' },
+    { id: 'nexo7', x: 0,    y: 5.4,  speakerType: 'NEXO' },
+    { id: 'nexo8', x: 0,    y: 14,   speakerType: 'NEXO' },
+];
+
+// FloorPlan 1: D&Bs —— 扬声器类型为 "D&B"；布局可根据实际需求自行调整
+const speakers_DnB: SpeakerData[] = [
+    { id: 'D&B1', x: 1,   y: 19.4, speakerType: 'D&B' },
+    { id: 'D&B2', x: 12,  y: 19.4, speakerType: 'D&B' },
+    { id: 'D&B3', x: 15.1, y: 16,   speakerType: 'D&B' },
+    { id: 'D&B4', x: 15.1, y: 8,    speakerType: 'D&B' },
+    { id: 'D&B5', x: 13,  y: 0,    speakerType: 'D&B' },
+    { id: 'D&B6', x: 3,   y: 0,    speakerType: 'D&B' },
+    { id: 'D&B7', x: 0,   y: 7,    speakerType: 'D&B' },
+    { id: 'D&B8', x: 0,   y: 15,   speakerType: 'D&B' },
+];
+
+// FloorPlan 2: JBLs —— 扬声器类型为 "JBL"，布局与 NEXOs 类似但 id 不同
+const speakers_JBL: SpeakerData[] = [
+    { id: 'JBL1', x: 1.8,  y: 19.4, speakerType: 'JBL' },
+    { id: 'JBL2', x: 13.3, y: 19.4, speakerType: 'JBL' },
+    { id: 'JBL3', x: 15.1, y: 14,   speakerType: 'JBL' },
+    { id: 'JBL4', x: 15.1, y: 5.4,  speakerType: 'JBL' },
+    { id: 'JBL5', x: 12.8, y: 0,    speakerType: 'JBL' },
+    { id: 'JBL6', x: 2.3,  y: 0,    speakerType: 'JBL' },
+    { id: 'JBL7', x: 0,    y: 5.4,  speakerType: 'JBL' },
+    { id: 'JBL8', x: 0,    y: 14,   speakerType: 'JBL' },
+];
+
+// FloorPlan 3: STAGE —— 中央放置一个 JBL 扬声器
+const speakers_STAGE: SpeakerData[] = [
+    { id: 'JBL_STAGE', x: HALL_WIDTH / 2, y: HALL_HEIGHT / 2, speakerType: 'JBL' },
+];
+
+// 四个 FloorPlan 的配置
+const floorPlans = [
+    { label: 'NEXOs', speakers: speakers_NEXO },
+    { label: 'D&Bs', speakers: speakers_DnB },
+    { label: 'JBLs', speakers: speakers_JBL },
+    { label: 'STAGE', speakers: speakers_STAGE },
 ];
 
 const FloorPlanScreen: React.FC = () => {
     const router = useRouter();
     const { width, height } = Dimensions.get('window');
+    const [currentFloorPlanIndex, setCurrentFloorPlanIndex] = useState(0);
 
     // 设置边缘留白：动态取屏幕宽度的15%
     const MARGIN_RATIO = 0.15;
     const MARGIN = width * MARGIN_RATIO;
 
-    // 分为上半部分（80%）显示平面图，下半部分（20%）为控制区域
+    // 竖屏布局：上半部分（80%）显示平面图，下半部分（20%）显示控制区域
     const floorPlanHeight = height * 0.8;
     const controlsHeight = height - floorPlanHeight;
 
@@ -58,71 +102,58 @@ const FloorPlanScreen: React.FC = () => {
     const scaleX = availableWidth / HALL_WIDTH;
     const scaleY = availableHeight / HALL_HEIGHT;
     const scale = Math.min(scaleX, scaleY);
-    // 计算偏移量：使音乐厅区域在可用区域内居中后再加上边缘留白
     const offsetX = MARGIN + (availableWidth - HALL_WIDTH * scale) / 2;
     const offsetY = MARGIN + (availableHeight - HALL_HEIGHT * scale) / 2;
 
-    // 保存扬声器数据（用于显示）
-    const [speakers] = useState<SpeakerData[]>(initialSpeakers);
-    // 使用 Context 保留选中状态，确保从其他界面返回时选中信息不丢失
+    // 从 Context 获取选中状态
     const { selectedSpeakers, setSelectedSpeakers } = useContext(SpeakerSelectionContext);
-    // 保存拖动选择矩形的位置与尺寸
     const [selectionRect, setSelectionRect] = useState<{
         x: number;
         y: number;
         width: number;
         height: number;
     } | null>(null);
-    // Mute 状态：控制当前选中的扬声器是否处于静音状态
     const [isMuted, setIsMuted] = useState(false);
-    // 存储已静音的扬声器ID
     const [mutedSpeakerIds, setMutedSpeakerIds] = useState<string[]>([]);
 
-    // 设置弹窗状态以及音量值(0..1)
+    // 弹窗状态及音量
     const [settingsModalVisible, setSettingsModalVisible] = useState(false);
     const [volume, setVolume] = useState(0.5);
 
-    // 定义扬声器到 fader 的映射，与服务器端保持一致
+    // 定义扬声器到 channel 的映射
+    // 注意：如何增加新扬声器类型和设置映射：在下面对象中添加对应扬声器 id 和 channel 数字
     const speakerToFader: { [key: string]: number } = {
-        nexo1: 16,
-        nexo2: 17,
-        nexo3: 18,
-        nexo4: 19,
-        nexo5: 20,
-        nexo6: 21,
-        nexo7: 22,
-        nexo8: 23,
+        nexo1: 16, nexo2: 17, nexo3: 18, nexo4: 19, nexo5: 20, nexo6: 21, nexo7: 22, nexo8: 23,
+        JBL1: 24, JBL2: 25, JBL3: 26, JBL4: 27, JBL5: 28, JBL6: 29, JBL7: 30, JBL8: 31,
+        "D&B1": 32, "D&B2": 33, "D&B3": 34, "D&B4": 35, "D&B5": 36, "D&B6": 37, "D&B7": 38, "D&B8": 39,
+        JBL_STAGE: 40,
     };
 
-    // 将扬声器实际坐标转换为屏幕坐标（用于显示），Speaker 组件尺寸为50×50，所以居中需要减25
-    const screenSpeakerPositions = speakers.map(sp => {
-        const screenX = offsetX + sp.x * scale;
-        const screenY = offsetY + (HALL_HEIGHT - sp.y) * scale;
-        return { ...sp, screenX, screenY };
-    });
+    // 辅助函数：根据当前 FloorPlan 的扬声器数据计算屏幕坐标
+    const getScreenSpeakerPositions = (speakersArray: SpeakerData[]) => {
+        return speakersArray.map(sp => {
+            const screenX = offsetX + sp.x * scale;
+            const screenY = offsetY + (HALL_HEIGHT - sp.y) * scale;
+            return { ...sp, screenX, screenY };
+        });
+    };
 
-    // 修改后的单击选择逻辑：
-    // 如果当前选中列表仅有一个（单击选中状态），则覆盖选择；
-    // 如果当前已存在多个选中（来自拖动多选），则添加/移除该项。
+    // 当前 FloorPlan 的数据
+    const currentFloorPlan = floorPlans[currentFloorPlanIndex];
+    const currentScreenSpeakers = getScreenSpeakerPositions(currentFloorPlan.speakers);
+
+    // 修改后的单击选择逻辑（所有 FloorPlan 均使用 NEXOs FloorPlan 的选择逻辑）
     const handleSpeakerPress = (id: string) => {
         setSelectedSpeakers((prev: string[]) => {
             if (prev.includes(id)) {
-                // 如果已经存在，若为单个则清空，否则移除该项
                 return prev.length === 1 ? [] : prev.filter(s => s !== id);
             } else {
-                // 如果不包含，判断当前是否为单击模式（只有一项）
-                if (prev.length === 1) {
-                    // 单击模式：覆盖之前的选中
-                    return [id];
-                } else {
-                    // 如果为拖动多选则追加
-                    return [...prev, id];
-                }
+                return prev.length === 1 ? [id] : [...prev, id];
             }
         });
     };
 
-    // 长按：如果扬声器已选中，则跳转到设置页面（逻辑保持不变）
+    // 长按保持不变
     const handleSpeakerLongPress = (id: string) => {
         if (!selectedSpeakers.includes(id)) return;
         router.push({
@@ -131,24 +162,20 @@ const FloorPlanScreen: React.FC = () => {
         });
     };
 
-    // 点击背景清除所有选中状态
     const handleBackgroundPress = () => {
         setSelectedSpeakers([]);
     };
 
-    // "Sound Movement" 按钮，跳转到拖动界面
     const handleSoundMovement = () => {
         router.push('/drag');
     };
 
-    // 点击 Param Change 按钮后显示设置弹窗
     const handleParChange = () => {
         if (selectedSpeakers.length > 0) {
             setSettingsModalVisible(true);
         }
     };
 
-    // Mute 按钮：发送 mute/unmute 命令，并更新状态
     const handleMute = () => {
         if (selectedSpeakers.length === 0) {
             console.log("No speakers selected.");
@@ -175,7 +202,6 @@ const FloorPlanScreen: React.FC = () => {
         }
     };
 
-    // 处理设置弹窗中音量变化
     const handleVolumeChange = (sliderValue: number) => {
         setVolume(sliderValue);
         const mappedValue = Math.round(sliderValue * 1023);
@@ -214,7 +240,7 @@ const FloorPlanScreen: React.FC = () => {
                         width: rectRight - rectLeft,
                         height: rectBottom - rectTop,
                     });
-                    const newSelected = screenSpeakerPositions
+                    const newSelected = currentScreenSpeakers
                         .filter(sp =>
                             sp.screenX >= rectLeft &&
                             sp.screenX <= rectRight &&
@@ -237,12 +263,28 @@ const FloorPlanScreen: React.FC = () => {
     ).current;
     // ------------------------------
 
+    useEffect(() => {
+        console.log("Slider wrapper dimensions:", { width: 300, height: 50 });
+    }, []);
+
+    // 新增：左右箭头按钮用于切换 FloorPlan
+    const handleFloorPlanLeft = () => {
+        if (currentFloorPlanIndex > 0) {
+            setCurrentFloorPlanIndex(currentFloorPlanIndex - 1);
+        }
+    };
+    const handleFloorPlanRight = () => {
+        if (currentFloorPlanIndex < floorPlans.length - 1) {
+            setCurrentFloorPlanIndex(currentFloorPlanIndex + 1);
+        }
+    };
+
     return (
         <TouchableWithoutFeedback onPress={handleBackgroundPress}>
             <View style={styles.container}>
-                {/* 上半部分：音乐厅平面图 */}
+                {/* 固定显示当前 FloorPlan */}
                 <View style={styles.floorPlanContainer} {...panResponder.panHandlers}>
-                    <Text style={styles.topLabel}>NEXOs</Text>
+                    <Text style={styles.topLabel}>{floorPlans[currentFloorPlanIndex].label}</Text>
                     <Svg height="100%" width="100%">
                         <Rect
                             x={offsetX}
@@ -267,7 +309,7 @@ const FloorPlanScreen: React.FC = () => {
                             ]}
                         />
                     )}
-                    {screenSpeakerPositions.map(sp => (
+                    {currentScreenSpeakers.map(sp => (
                         <Speaker
                             key={sp.id}
                             id={sp.id}
@@ -277,16 +319,29 @@ const FloorPlanScreen: React.FC = () => {
                             muted={mutedSpeakerIds.includes(sp.id)}
                             onPress={() => handleSpeakerPress(sp.id)}
                             onLongPress={() => handleSpeakerLongPress(sp.id)}
+                            speakerType={sp.speakerType}
                         />
                     ))}
-                    {/* 当设置弹窗显示时，在上半部分底部显示选中id的文字，不遮挡弹窗 */}
+                    {/* 当设置弹窗显示时，在 FloorPlan 底部显示选中扬声器 id 的文字 */}
                     {settingsModalVisible && (
                         <View style={styles.floorPlanLabelContainer}>
                             <Text style={styles.floorPlanLabel}>{selectedSpeakers.join(', ')}</Text>
                         </View>
                     )}
                 </View>
-                {/* 下半部分：控制区域 */}
+                {/* 新增：左右箭头按钮区域用于切换 FloorPlan */}
+                <View style={styles.indicatorContainer}>
+                    <TouchableOpacity onPress={handleFloorPlanLeft} style={styles.arrowButton}>
+                        <Text style={styles.arrowText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.pageLabel}>
+                        {currentFloorPlanIndex + 1} / {floorPlans.length}
+                    </Text>
+                    <TouchableOpacity onPress={handleFloorPlanRight} style={styles.arrowButton}>
+                        <Text style={styles.arrowText}>→</Text>
+                    </TouchableOpacity>
+                </View>
+                {/* 控制区域 */}
                 <View style={styles.controls}>
                     <TouchableOpacity onPress={handleSoundMovement} style={styles.button}>
                         <Text style={styles.buttonText}>Sound Move</Text>
@@ -298,8 +353,7 @@ const FloorPlanScreen: React.FC = () => {
                         <Text style={styles.buttonText}>{isMuted ? 'UnMute' : 'Mute'}</Text>
                     </TouchableOpacity>
                 </View>
-
-                {/* 设置弹窗 Modal：点击 Param Change 时显示，仅包含竖直滑块 */}
+                {/* 设置弹窗 Modal：点击 Param Change 后显示，仅包含水平滑块 */}
                 <Modal
                     animationType="slide"
                     transparent
@@ -309,11 +363,11 @@ const FloorPlanScreen: React.FC = () => {
                     <TouchableWithoutFeedback onPress={() => setSettingsModalVisible(false)}>
                         <View style={styles.modalOverlay}>
                             <TouchableWithoutFeedback>
-                                {/* 将弹窗放置在上半部分中间 */}
-                                <View style={[styles.modalContainer, { marginTop: floorPlanHeight / 2 - 30 }]}>
+                                {/* 将弹窗放置在 FloorPlan 区域底部，滑块位于选中 id 文本标签上方 */}
+                                <View style={[styles.modalContainer, { marginTop: floorPlanHeight - 80 }]}>
                                     <View style={styles.modalSliderContainer}>
                                         <Slider
-                                            style={styles.verticalSlider}
+                                            style={styles.slider}
                                             value={volume}
                                             onValueChange={handleVolumeChange}
                                             minimumValue={0}
@@ -335,11 +389,27 @@ const FloorPlanScreen: React.FC = () => {
 
 export default FloorPlanScreen;
 
+// 辅助函数：计算当前 FloorPlan 的扬声器屏幕坐标
+const getScreenSpeakerPositions = (
+    speakersArray: SpeakerData[],
+    offsetX: number,
+    offsetY: number,
+    scale: number
+) => {
+    return speakersArray.map(sp => ({
+        ...sp,
+        screenX: offsetX + sp.x * scale,
+        screenY: offsetY + (HALL_HEIGHT - sp.y) * scale,
+    }));
+};
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        position: 'relative',
         backgroundColor: Colors.lightGray,
+    },
+    scrollContainer: {
+        flex: 0.8,
     },
     floorPlanContainer: {
         flex: 0.8,
@@ -355,6 +425,27 @@ const styles = StyleSheet.create({
         fontSize: 20,
         color: Colors.primary,
         zIndex: 1,
+    },
+    indicatorContainer: {
+        // 新增：左右箭头按钮区域，用于切换 FloorPlan
+        height: 30,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'transparent',
+    },
+    arrowButton: {
+        paddingHorizontal: 15,
+        paddingVertical: 5,
+    },
+    arrowText: {
+        fontSize: 20,
+        color: Colors.primary,
+    },
+    pageLabel: {
+        fontSize: 16,
+        marginHorizontal: 10,
+        color: Colors.primary,
     },
     controls: {
         flex: 0.2,
@@ -387,7 +478,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     modalContainer: {
-        // 弹窗不使用背景包裹，仅包裹滑块
         paddingVertical: 10,
         width: 270,
         alignItems: 'center',
@@ -396,10 +486,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    verticalSlider: {
+    slider: {
         width: 300,
         height: 50,
-        transform: [{ rotate: '-90deg' }],
         backgroundColor: Colors.controlBackground,
         borderRadius: 5,
     },
@@ -413,7 +502,7 @@ const styles = StyleSheet.create({
     floorPlanLabel: {
         fontSize: 16,
         color: Colors.primary,
-        textAlign: 'center', // 确保文字居中
+        textAlign: 'center',
         backgroundColor: 'transparent',
     },
 });
