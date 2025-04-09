@@ -318,7 +318,7 @@ const FloorPlanScreen: React.FC = () => {
             selectedSpeakers.forEach(id => {
                 const fader = speakerToFader[id];
                 if (fader !== undefined) {
-                    updateMute(fader, false);
+                    updateMute(fader, true);
                 }
             });
             setMutedSpeakerIds(prev => [...prev, ...selectedSpeakers]);
@@ -327,7 +327,7 @@ const FloorPlanScreen: React.FC = () => {
             selectedSpeakers.forEach(id => {
                 const fader = speakerToFader[id];
                 if (fader !== undefined) {
-                    updateMute(fader, true);
+                    updateMute(fader, false);
                 }
             });
             setMutedSpeakerIds(prev => prev.filter(id => !selectedSpeakers.includes(id)));
@@ -415,7 +415,7 @@ const FloorPlanScreen: React.FC = () => {
                         <Text style={styles.buttonText}>Sound Move</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={handleParChange} style={styles.button}>
-                        <Text style={styles.buttonText}>Param Change</Text>
+                        <Text style={styles.buttonText}>Volume</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={handleMute} style={styles.button}>
                         <Text style={styles.buttonText}>{isMuted ? 'UnMute' : 'Mute'}</Text>
@@ -462,10 +462,10 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.lightGray,
     },
     scrollContainer: {
-        flex: 0.8,
+        flex: 0.9,
     },
     floorPlanContainer: {
-        flex: 0.8,
+        flex: 0.9,
         position: 'relative',
         opacity: 0.8,
     },
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
         color: Colors.primary,
     },
     controls: {
-        flex: 0.2,
+        flex: 0.1,
         flexDirection: 'row',
         justifyContent: 'space-evenly',
         alignItems: 'center',
