@@ -44,13 +44,12 @@ const speakers_NEXO: SpeakerData[] = [
 
 // FloorPlan 1: D&Bs —— 扬声器类型为 "D&B"
 const speakers_DnB: SpeakerData[] = [
-
-    { id: 'D&B3', x: 17.1, y: 15.4,   speakerType: 'D&B' },
-    { id: 'D&B4', x: 17.1, y: 8.4,    speakerType: 'D&B' },
-    { id: 'D&B5', x: 17.1,  y: 1.4,    speakerType: 'D&B' },
-    { id: 'D&B6', x: -2,   y: 1.4,    speakerType: 'D&B' },
-    { id: 'D&B7', x: -2,   y: 8.4,    speakerType: 'D&B' },
-    { id: 'D&B8', x: -2,   y: 15.4,   speakerType: 'D&B' },
+    { id: 'D&B3', x: 16.6, y: 15.4,   speakerType: 'D&B' },
+    { id: 'D&B4', x: 16.6, y: 8.4,    speakerType: 'D&B' },
+    { id: 'D&B5', x: 16.6,  y: 1.4,    speakerType: 'D&B' },
+    { id: 'D&B6', x: -1.5,   y: 1.4,    speakerType: 'D&B' },
+    { id: 'D&B7', x: -1.5,   y: 8.4,    speakerType: 'D&B' },
+    { id: 'D&B8', x: -1.5,   y: 15.4,   speakerType: 'D&B' },
 ];
 
 // FloorPlan 2: JBLs —— 扬声器类型为 "JBL"，布局与 NEXOs 类似但 id 不同
@@ -100,7 +99,7 @@ const FloorPlanScreen: React.FC = () => {
     // 保存各 FloorPlan 的独立选中状态
     const [planSelections, setPlanSelections] = useState<{ [index: number]: string[] }>({});
 
-    const MARGIN_RATIO = 0.2;
+    const MARGIN_RATIO = 0.15;
     const MARGIN = width * MARGIN_RATIO;
     const floorPlanHeight = height * 0.8;
     const availableWidth = width - 2 * MARGIN;
@@ -139,11 +138,41 @@ const FloorPlanScreen: React.FC = () => {
         nexo1: 16, nexo2: 17, nexo3: 18, nexo4: 19, nexo5: 20, nexo6: 21, nexo7: 22, nexo8: 23,
         JBL1: 24, JBL2: 25, JBL3: 26, JBL4: 27, JBL5: 28, JBL6: 29, JBL7: 30, JBL8: 31,
         "D&B1": 32, "D&B2": 33, "D&B3": 34, "D&B4": 35, "D&B5": 36, "D&B6": 37, "D&B7": 38, "D&B8": 39,
-        JBL_STAGE: 40,nexo9: 41
+        JBL_STAGE: 40, nexo9: 41
     };
 
     // 当前 FloorPlan 数据
     const currentFloorPlan = floorPlans[currentFloorPlanIndex];
+
+    // 根据当前的 FloorPlan 判断并绘制边框
+    const borderElement = currentFloorPlan.label === "STAGE" ? (() => {
+        // 将 STAGE 的边框调整为横向矩形：宽度保持不变，高度为宽度的 50%
+        const stageRectWidth = HALL_WIDTH * scale;
+        const stageRectHeight = stageRectWidth * 0.5;
+        // 将横向矩形在原来的区域内垂直居中
+        const stageRectY = offsetY + ((HALL_HEIGHT * scale) - stageRectHeight) / 2;
+        return (
+            <Rect
+                x={offsetX}
+                y={stageRectY}
+                width={stageRectWidth}
+                height={stageRectHeight}
+                stroke={Colors.primary}
+                strokeWidth={2}
+                fill="none"
+            />
+        );
+    })() : (
+        <Rect
+            x={offsetX}
+            y={offsetY}
+            width={HALL_WIDTH * scale}
+            height={HALL_HEIGHT * scale}
+            stroke={Colors.primary}
+            strokeWidth={2}
+            fill="none"
+        />
+    );
 
     // ---- 拖动选择逻辑 ----
     const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -358,16 +387,12 @@ const FloorPlanScreen: React.FC = () => {
             console.log("No speakers selected.");
             return;
         }
-        if (!isMuted) {
-            selectedSpeakers.forEach(id => {
-                const fader = speakerToFader[id];
-                if (fader !== undefined) {
-                    updateMute(fader, true);
-                }
-            });
-            setMutedSpeakerIds(prev => [...prev, ...selectedSpeakers]);
-            setIsMuted(true);
-        } else {
+        // 判断当前选中扬声器中处于静音状态的数量，平分时视作未静音
+        const mutedCount = selectedSpeakers.filter(id => mutedSpeakerIds.includes(id)).length;
+        const currentlyMuted = mutedCount > selectedSpeakers.length / 2;
+
+        if (currentlyMuted) {
+            // 取消静音操作
             selectedSpeakers.forEach(id => {
                 const fader = speakerToFader[id];
                 if (fader !== undefined) {
@@ -375,9 +400,26 @@ const FloorPlanScreen: React.FC = () => {
                 }
             });
             setMutedSpeakerIds(prev => prev.filter(id => !selectedSpeakers.includes(id)));
-            setIsMuted(false);
+        } else {
+            // 执行静音操作
+            selectedSpeakers.forEach(id => {
+                const fader = speakerToFader[id];
+                if (fader !== undefined) {
+                    updateMute(fader, true);
+                }
+            });
+            setMutedSpeakerIds(prev => {
+                const updated = new Set(prev);
+                selectedSpeakers.forEach(id => updated.add(id));
+                return Array.from(updated);
+            });
         }
     };
+
+    // 计算当前选中扬声器是否“多数为静音状态”，平分视作未静音
+    const isSelectionMuted =
+        selectedSpeakers.length > 0 &&
+        selectedSpeakers.filter(id => mutedSpeakerIds.includes(id)).length > selectedSpeakers.length / 2;
 
     const handleVolumeChange = (sliderValue: number) => {
         setVolume(sliderValue);
@@ -405,15 +447,7 @@ const FloorPlanScreen: React.FC = () => {
                 >
                     <Text style={styles.topLabel}>{currentFloorPlan.label}</Text>
                     <Svg height="100%" width="100%">
-                        <Rect
-                            x={offsetX}
-                            y={offsetY}
-                            width={HALL_WIDTH * scale}
-                            height={HALL_HEIGHT * scale}
-                            stroke={Colors.primary}
-                            strokeWidth={2}
-                            fill="none"
-                        />
+                        {borderElement}
                     </Svg>
                     {selectionRect && (
                         <View
@@ -468,7 +502,7 @@ const FloorPlanScreen: React.FC = () => {
                         <Text style={styles.buttonText}>Volume</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={handleMute} style={styles.button}>
-                        <Text style={styles.buttonText}>{isMuted ? 'UnMute' : 'Mute'}</Text>
+                        <Text style={styles.buttonText}>{isSelectionMuted ? 'UnMute' : 'Mute'}</Text>
                     </TouchableOpacity>
                 </View>
                 {/* 设置参数 Modal */}

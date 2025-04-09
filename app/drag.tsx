@@ -164,13 +164,13 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.lightGray,
     },
     floorPlanContainer: {
-        flex: 0.8,
+        flex: 0.9,
         position: 'relative',
         // 此区域采用半透明背景（不遮挡图形内容）
         opacity: 0.8,
     },
     controls: {
-        flex: 0.2,
+        flex: 0.1,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: Colors.controlBackground,
