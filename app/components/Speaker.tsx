@@ -25,7 +25,7 @@ const Speaker: React.FC<Props> = ({ id, x, y, selected, muted, onPress, onLongPr
     // 根据扬声器类型选择默认背景颜色（非选中状态），可自定义
     const typeColorMap: { [key: string]: string } = {
         NEXO: Colors.groupA, // 原有蓝色
-        JBL: '#1E90FF',      // 例如道奇蓝
+        JBL: '#FFA500',      // 例如道奇蓝
         "D&B": '#32CD32',    // 例如青绿色
     };
 

@@ -39,34 +39,36 @@ const speakers_NEXO: SpeakerData[] = [
     { id: 'nexo6', x: 2.3,  y: 0,    speakerType: 'NEXO' },
     { id: 'nexo7', x: 0,    y: 5.4,  speakerType: 'NEXO' },
     { id: 'nexo8', x: 0,    y: 14,   speakerType: 'NEXO' },
+    { id: 'nexo9', x: 7.55,    y: 19.4,   speakerType: 'NEXO' }
 ];
 
 // FloorPlan 1: D&Bs —— 扬声器类型为 "D&B"
 const speakers_DnB: SpeakerData[] = [
-    { id: 'D&B1', x: 1,   y: 19.4, speakerType: 'D&B' },
-    { id: 'D&B2', x: 12,  y: 19.4, speakerType: 'D&B' },
-    { id: 'D&B3', x: 15.1, y: 16,   speakerType: 'D&B' },
-    { id: 'D&B4', x: 15.1, y: 8,    speakerType: 'D&B' },
-    { id: 'D&B5', x: 13,  y: 0,    speakerType: 'D&B' },
-    { id: 'D&B6', x: 3,   y: 0,    speakerType: 'D&B' },
-    { id: 'D&B7', x: 0,   y: 7,    speakerType: 'D&B' },
-    { id: 'D&B8', x: 0,   y: 15,   speakerType: 'D&B' },
+
+    { id: 'D&B3', x: 17.1, y: 15.4,   speakerType: 'D&B' },
+    { id: 'D&B4', x: 17.1, y: 8.4,    speakerType: 'D&B' },
+    { id: 'D&B5', x: 17.1,  y: 1.4,    speakerType: 'D&B' },
+    { id: 'D&B6', x: -2,   y: 1.4,    speakerType: 'D&B' },
+    { id: 'D&B7', x: -2,   y: 8.4,    speakerType: 'D&B' },
+    { id: 'D&B8', x: -2,   y: 15.4,   speakerType: 'D&B' },
 ];
 
 // FloorPlan 2: JBLs —— 扬声器类型为 "JBL"，布局与 NEXOs 类似但 id 不同
 const speakers_JBL: SpeakerData[] = [
-    { id: 'JBL1', x: 1.8,  y: 19.4, speakerType: 'JBL' },
-    { id: 'JBL2', x: 13.3, y: 19.4, speakerType: 'JBL' },
-    { id: 'JBL3', x: 15.1, y: 14,   speakerType: 'JBL' },
-    { id: 'JBL4', x: 15.1, y: 5.4,  speakerType: 'JBL' },
-    { id: 'JBL5', x: 12.8, y: 0,    speakerType: 'JBL' },
-    { id: 'JBL6', x: 2.3,  y: 0,    speakerType: 'JBL' },
-    { id: 'JBL7', x: 0,    y: 5.4,  speakerType: 'JBL' },
-    { id: 'JBL8', x: 0,    y: 14,   speakerType: 'JBL' },
+    { id: 'JBL1', x: 0,  y: 14, speakerType: 'JBL' },
+    { id: 'JBL2', x: 15.1, y: 14, speakerType: 'JBL' },
+    { id: 'JBL3', x: 15.1, y: 5.4,   speakerType: 'JBL' },
+    { id: 'JBL4', x: 15.1, y: 0,  speakerType: 'JBL' },
+    { id: 'JBL5', x: 12.6, y: -2,    speakerType: 'JBL' },
+    { id: 'JBL6', x: 2.5,  y: -2,    speakerType: 'JBL' },
+    { id: 'JBL7', x: 0,    y: 0,  speakerType: 'JBL' },
+    { id: 'JBL8', x: 0,    y: 5.4,   speakerType: 'JBL' },
 ];
 
 // FloorPlan 3: STAGE —— 中央放置一个 JBL 扬声器
 const speakers_STAGE: SpeakerData[] = [
+    { id: 'D&B1', x: 4,   y: 13.4, speakerType: 'D&B' },
+    { id: 'D&B2', x: 11.1,  y: 13.4, speakerType: 'D&B' },
     { id: 'JBL_STAGE', x: HALL_WIDTH / 2, y: HALL_HEIGHT / 2, speakerType: 'JBL' },
 ];
 
@@ -98,7 +100,7 @@ const FloorPlanScreen: React.FC = () => {
     // 保存各 FloorPlan 的独立选中状态
     const [planSelections, setPlanSelections] = useState<{ [index: number]: string[] }>({});
 
-    const MARGIN_RATIO = 0.15;
+    const MARGIN_RATIO = 0.2;
     const MARGIN = width * MARGIN_RATIO;
     const floorPlanHeight = height * 0.8;
     const availableWidth = width - 2 * MARGIN;
@@ -127,12 +129,17 @@ const FloorPlanScreen: React.FC = () => {
     const [settingsModalVisible, setSettingsModalVisible] = useState(false);
     const [volume, setVolume] = useState(0.5);
 
+    // 新增：保存容器高度，用于判断触摸区域（底部十分之一）
+    const [containerHeight, setContainerHeight] = useState(0);
+    // 新增：标记是否为翻页手势
+    const isPageSwipeRef = useRef(false);
+
     // 扬声器到 channel 的映射
     const speakerToFader: { [key: string]: number } = {
         nexo1: 16, nexo2: 17, nexo3: 18, nexo4: 19, nexo5: 20, nexo6: 21, nexo7: 22, nexo8: 23,
         JBL1: 24, JBL2: 25, JBL3: 26, JBL4: 27, JBL5: 28, JBL6: 29, JBL7: 30, JBL8: 31,
         "D&B1": 32, "D&B2": 33, "D&B3": 34, "D&B4": 35, "D&B5": 36, "D&B6": 37, "D&B7": 38, "D&B8": 39,
-        JBL_STAGE: 40,
+        JBL_STAGE: 40,nexo9: 41
     };
 
     // 当前 FloorPlan 数据
@@ -141,19 +148,26 @@ const FloorPlanScreen: React.FC = () => {
     // ---- 拖动选择逻辑 ----
     const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
 
-    // 使用 useState 保存 panResponder，每次 currentFloorPlan 变化时重新创建
+    // 修改：初始 panResponder，加入区域判断逻辑
     const [panResponder, setPanResponder] = useState(
         PanResponder.create({
             onStartShouldSetPanResponder: () => true,
             onPanResponderGrant: (evt) => {
                 const { locationX, locationY } = evt.nativeEvent;
-                selectionStartRef.current = { x: locationX, y: locationY };
-                setSelectionRect({ x: locationX, y: locationY, width: 0, height: 0 });
-                updateCurrentSelection([]);
+                if (locationY >= containerHeight * 0.9) {
+                    isPageSwipeRef.current = true;
+                    // 记录起始位置用于后续计算滑动距离
+                    selectionStartRef.current = { x: locationX, y: locationY };
+                } else {
+                    isPageSwipeRef.current = false;
+                    selectionStartRef.current = { x: locationX, y: locationY };
+                    setSelectionRect({ x: locationX, y: locationY, width: 0, height: 0 });
+                    updateCurrentSelection([]);
+                }
             },
             onPanResponderMove: (evt) => {
                 const { locationX, locationY } = evt.nativeEvent;
-                if (selectionStartRef.current) {
+                if (!isPageSwipeRef.current && selectionStartRef.current) {
                     const start = selectionStartRef.current;
                     const rectLeft = Math.min(start.x, locationX);
                     const rectRight = Math.max(start.x, locationX);
@@ -184,32 +198,50 @@ const FloorPlanScreen: React.FC = () => {
                     updateCurrentSelection(newSelected);
                 }
             },
-            onPanResponderRelease: () => {
+            onPanResponderRelease: (evt) => {
+                if (isPageSwipeRef.current && selectionStartRef.current) {
+                    const { locationX } = evt.nativeEvent;
+                    const deltaX = locationX - selectionStartRef.current.x;
+                    const threshold = 50; // 根据需要调整阈值
+                    if (deltaX > threshold) {
+                        handleFloorPlanLeft();
+                    } else if (deltaX < -threshold) {
+                        handleFloorPlanRight();
+                    }
+                }
                 selectionStartRef.current = null;
                 setSelectionRect(null);
+                isPageSwipeRef.current = false;
             },
             onPanResponderTerminate: () => {
                 selectionStartRef.current = null;
                 setSelectionRect(null);
+                isPageSwipeRef.current = false;
             },
         })
     );
 
     // 当 currentFloorPlan 或者屏幕参数发生变化时，重新创建 panResponder，
-    // 确保回调中捕获最新的 currentFloorPlan.speakers、offsetX、offsetY 和 scale
+    // 确保回调中捕获最新的 currentFloorPlan.speakers、offsetX、offsetY、scale 和 containerHeight
     useEffect(() => {
         setPanResponder(
             PanResponder.create({
                 onStartShouldSetPanResponder: () => true,
                 onPanResponderGrant: (evt) => {
                     const { locationX, locationY } = evt.nativeEvent;
-                    selectionStartRef.current = { x: locationX, y: locationY };
-                    setSelectionRect({ x: locationX, y: locationY, width: 0, height: 0 });
-                    updateCurrentSelection([]);
+                    if (locationY >= containerHeight * 0.9) {
+                        isPageSwipeRef.current = true;
+                        selectionStartRef.current = { x: locationX, y: locationY };
+                    } else {
+                        isPageSwipeRef.current = false;
+                        selectionStartRef.current = { x: locationX, y: locationY };
+                        setSelectionRect({ x: locationX, y: locationY, width: 0, height: 0 });
+                        updateCurrentSelection([]);
+                    }
                 },
                 onPanResponderMove: (evt) => {
                     const { locationX, locationY } = evt.nativeEvent;
-                    if (selectionStartRef.current) {
+                    if (!isPageSwipeRef.current && selectionStartRef.current) {
                         const start = selectionStartRef.current;
                         const rectLeft = Math.min(start.x, locationX);
                         const rectRight = Math.max(start.x, locationX);
@@ -239,17 +271,29 @@ const FloorPlanScreen: React.FC = () => {
                         updateCurrentSelection(newSelected);
                     }
                 },
-                onPanResponderRelease: () => {
+                onPanResponderRelease: (evt) => {
+                    if (isPageSwipeRef.current && selectionStartRef.current) {
+                        const { locationX } = evt.nativeEvent;
+                        const deltaX = locationX - selectionStartRef.current.x;
+                        const threshold = 50;
+                        if (deltaX > threshold) {
+                            handleFloorPlanLeft();
+                        } else if (deltaX < -threshold) {
+                            handleFloorPlanRight();
+                        }
+                    }
                     selectionStartRef.current = null;
                     setSelectionRect(null);
+                    isPageSwipeRef.current = false;
                 },
                 onPanResponderTerminate: () => {
                     selectionStartRef.current = null;
                     setSelectionRect(null);
+                    isPageSwipeRef.current = false;
                 },
             })
         );
-    }, [currentFloorPlan, offsetX, offsetY, scale]);
+    }, [currentFloorPlan, offsetX, offsetY, scale, containerHeight]);
 
     // ------------------------------
     useEffect(() => {
@@ -352,7 +396,13 @@ const FloorPlanScreen: React.FC = () => {
         <TouchableWithoutFeedback onPress={handleBackgroundPress}>
             <View style={styles.container}>
                 {/* 显示当前 FloorPlan */}
-                <View style={styles.floorPlanContainer} {...panResponder.panHandlers}>
+                <View
+                    style={styles.floorPlanContainer}
+                    {...panResponder.panHandlers}
+                    onLayout={(event) => {
+                        setContainerHeight(event.nativeEvent.layout.height);
+                    }}
+                >
                     <Text style={styles.topLabel}>{currentFloorPlan.label}</Text>
                     <Svg height="100%" width="100%">
                         <Rect

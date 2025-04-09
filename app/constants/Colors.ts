@@ -5,7 +5,7 @@ const Colors = {
     lightGray: '#F0F0F0',
     controlBackground: '#DDDDDD',
     // 新增：
-    jblDefault: '#00AAFF',     // 示例：JBL 默认蓝色
+    jblDefault: '#FFA500',
     jblSelected: '#1E90FF',    // JBL 选中时颜色
     dbDefault: '#8B4513',      // 示例：D&Bs 默认棕色
     dbSelected: '#A0522D',     // D&Bs 选中时颜色

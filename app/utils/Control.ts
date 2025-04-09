@@ -1,8 +1,9 @@
 // app/utils/Control.ts
 import io from 'socket.io-client';
 
-const SOCKET_SERVER_URL = 'http://192.168.192.100:3000';
-// const SOCKET_SERVER_URL = 'http://192.168.0.17:3000';
+//const SOCKET_SERVER_URL = 'http://192.168.192.100:3000';//local
+ const SOCKET_SERVER_URL = 'http://192.168.192.252:3000';//raspberrypi@home
+// const SOCKET_SERVER_URL = 'http://192.168.0.17:3000';//raspberrypi@auditorium
 
 const socket = io(SOCKET_SERVER_URL, {
     transports: ['websocket'],
