@@ -39,35 +39,35 @@ const speakers_NEXO: SpeakerData[] = [
     { id: 'nexo6', x: 2.3,  y: 0,    speakerType: 'NEXO' },
     { id: 'nexo7', x: 0,    y: 5.4,  speakerType: 'NEXO' },
     { id: 'nexo8', x: 0,    y: 14,   speakerType: 'NEXO' },
-    { id: 'nexo9', x: 7.55,    y: 19.4,   speakerType: 'NEXO' }
+    { id: 'nexo9', x: 7.55,  y: 19.4, speakerType: 'NEXO' }
 ];
 
 // FloorPlan 1: D&Bs —— 扬声器类型为 "D&B"
 const speakers_DnB: SpeakerData[] = [
     { id: 'D&B3', x: 16.6, y: 15.4,   speakerType: 'D&B' },
     { id: 'D&B4', x: 16.6, y: 8.4,    speakerType: 'D&B' },
-    { id: 'D&B5', x: 16.6,  y: 1.4,    speakerType: 'D&B' },
-    { id: 'D&B6', x: -1.5,   y: 1.4,    speakerType: 'D&B' },
-    { id: 'D&B7', x: -1.5,   y: 8.4,    speakerType: 'D&B' },
-    { id: 'D&B8', x: -1.5,   y: 15.4,   speakerType: 'D&B' },
+    { id: 'D&B5', x: 16.6, y: 1.4,    speakerType: 'D&B' },
+    { id: 'D&B6', x: -1.5, y: 1.4,    speakerType: 'D&B' },
+    { id: 'D&B7', x: -1.5, y: 8.4,    speakerType: 'D&B' },
+    { id: 'D&B8', x: -1.5, y: 15.4,   speakerType: 'D&B' },
 ];
 
 // FloorPlan 2: JBLs —— 扬声器类型为 "JBL"，布局与 NEXOs 类似但 id 不同
 const speakers_JBL: SpeakerData[] = [
-    { id: 'JBL1', x: 0,  y: 14, speakerType: 'JBL' },
+    { id: 'JBL1', x: 0,   y: 14, speakerType: 'JBL' },
     { id: 'JBL2', x: 15.1, y: 14, speakerType: 'JBL' },
-    { id: 'JBL3', x: 15.1, y: 5.4,   speakerType: 'JBL' },
-    { id: 'JBL4', x: 15.1, y: 0,  speakerType: 'JBL' },
-    { id: 'JBL5', x: 12.6, y: -2,    speakerType: 'JBL' },
-    { id: 'JBL6', x: 2.5,  y: -2,    speakerType: 'JBL' },
-    { id: 'JBL7', x: 0,    y: 0,  speakerType: 'JBL' },
-    { id: 'JBL8', x: 0,    y: 5.4,   speakerType: 'JBL' },
+    { id: 'JBL3', x: 15.1, y: 5.4, speakerType: 'JBL' },
+    { id: 'JBL4', x: 15.1, y: 0,   speakerType: 'JBL' },
+    { id: 'JBL5', x: 12.6, y: -2,  speakerType: 'JBL' },
+    { id: 'JBL6', x: 2.5,  y: -2,  speakerType: 'JBL' },
+    { id: 'JBL7', x: 0,    y: 0,   speakerType: 'JBL' },
+    { id: 'JBL8', x: 0,    y: 5.4, speakerType: 'JBL' },
 ];
 
 // FloorPlan 3: STAGE —— 中央放置一个 JBL 扬声器
 const speakers_STAGE: SpeakerData[] = [
     { id: 'D&B1', x: 4,   y: 13.4, speakerType: 'D&B' },
-    { id: 'D&B2', x: 11.1,  y: 13.4, speakerType: 'D&B' },
+    { id: 'D&B2', x: 11.1, y: 13.4, speakerType: 'D&B' },
     { id: 'JBL_STAGE', x: HALL_WIDTH / 2, y: HALL_HEIGHT / 2, speakerType: 'JBL' },
 ];
 
@@ -480,6 +480,17 @@ const FloorPlanScreen: React.FC = () => {
                             <Text style={styles.floorPlanLabel}>{selectedSpeakers.join(', ')}</Text>
                         </View>
                     )}
+                    {/*
+                      新增：Select All 按钮
+                      该按钮被绝对定位在 floorPlanContainer 底部中央，
+                      当点击时，将当前 FloorPlan 内所有扬声器 id 设置为选中状态
+                    */}
+                    <TouchableOpacity
+                        style={styles.selectAllButton}
+                        onPress={() => updateCurrentSelection(currentFloorPlan.speakers.map(sp => sp.id))}
+                    >
+                        <Text style={styles.selectAllButtonText}>Select All</Text>
+                    </TouchableOpacity>
                 </View>
                 {/* FloorPlan 切换箭头 */}
                 <View style={styles.indicatorContainer}>
@@ -606,6 +617,20 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: Colors.primary,
         backgroundColor: 'rgba(0,0,255,0.2)',
+    },
+    // 新增的 Select All 按钮样式
+    selectAllButton: {
+        position: 'absolute',
+        bottom: 10,
+        alignSelf: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        backgroundColor: Colors.primary,
+        borderRadius: 5,
+    },
+    selectAllButtonText: {
+        color: '#fff',
+        fontSize: 16,
     },
     modalOverlay: {
         flex: 1,
