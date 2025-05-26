@@ -1,3 +1,4 @@
+// app/drag/tsx
 import React, { useState, useRef } from 'react';
 import {
     StyleSheet,
@@ -9,11 +10,15 @@ import {
     TouchableOpacity,
     Text,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import Svg, { Rect, Circle } from 'react-native-svg';
-import Speaker from './components/Speaker';
 import Colors from './constants/Colors';
 import { updateSourceCoord } from './utils/Control';
+import throttle from 'lodash/throttle';
+
+
+interface DragScreenProps {
+    onClose?: () => void;
+}
 
 // 定义音乐厅实际尺寸（单位：米）
 const HALL_WIDTH = 15.1;
@@ -36,19 +41,15 @@ const initialSpeakers: SpeakerData[] = [
     { id: 'nexo8', x: 0,    y: 14 },
 ];
 
-const DragScreen: React.FC = () => {
-    const router = useRouter();
+const DragScreen: React.FC<DragScreenProps> = ({ onClose }) => {
     const { width, height } = Dimensions.get('window');
 
     // 动态边缘留白，留出屏幕宽度的 5%
     const MARGIN_RATIO = 0.05;
     const MARGIN = width * MARGIN_RATIO;
 
-    // 我们把屏幕分为两部分：上半部分（80%）用于显示平面图，下半部分（20%）用于控制
+    // 将屏幕分为两部分：上半部分（80%）显示平面图，下半部分（20%）用于控制
     const floorPlanHeight = height * 0.8;
-    const controlsHeight = height - floorPlanHeight;
-
-    // 可用绘制区域：上半部分扣除边缘留白
     const availableWidth = width - 2 * MARGIN;
     const availableHeight = floorPlanHeight - 2 * MARGIN;
     // 根据可用区域与音乐厅实际尺寸计算缩放比例
@@ -64,44 +65,63 @@ const DragScreen: React.FC = () => {
     // 当前触控位置（屏幕坐标），用于显示虚拟声源
     const [currentPosition, setCurrentPosition] = useState<{ x: number; y: number } | null>(null);
 
-    // 将屏幕坐标转换为音乐厅实际坐标（单位：米）
-    // 注意：屏幕原点在左上角，而音乐厅坐标原点在左下角，所以 y 坐标需要反转
+    // 将屏幕坐标转换为音乐厅实际坐标（单位：米），注意 y 坐标需要反转
     const convertScreenToHall = (screenX: number, screenY: number) => {
         const hallX = (screenX - offsetX) / scale;
         const hallY = HALL_HEIGHT - ((screenY - offsetY) / scale);
         return { hallX, hallY };
     };
 
-    // 拖动时将触控坐标转换为音乐厅坐标，并发送给服务器
-    const updateAllFaders = (touchX: number, touchY: number) => {
+    // 节流与阈值判断部分：
+    // 设定坐标变化的最小阈值（单位：米），只有超过该阈值才发送更新
+    const THRESHOLD = 0.1;
+    // 使用 useRef 保存上一次发送的坐标，避免在组件重绘时丢失
+    const lastCoordsRef = useRef<{ hallX: number; hallY: number } | null>(null);
+
+    // 定义用于检查阈值和发送消息的函数
+    const maybeSendUpdate = (touchX: number, touchY: number) => {
         const { hallX, hallY } = convertScreenToHall(touchX, touchY);
+        if (lastCoordsRef.current) {
+            const dx = Math.abs(hallX - lastCoordsRef.current.hallX);
+            const dy = Math.abs(hallY - lastCoordsRef.current.hallY);
+            if (dx < THRESHOLD && dy < THRESHOLD) {
+                // 如果坐标变化不足阈值，不发送更新
+                return;
+            }
+        }
+        lastCoordsRef.current = { hallX, hallY };
         console.log(
             `Converted screen coords (${touchX.toFixed(2)}, ${touchY.toFixed(2)}) -> hall coords (${hallX.toFixed(2)}, ${hallY.toFixed(2)})`
         );
         updateSourceCoord(hallX, hallY);
     };
 
-    // 创建 PanResponder 捕捉拖动事件，只作用于上半部分平面图区域
+    // 利用 throttle 限制发送消息的频率（50 毫秒一次）
+    const throttledUpdate = useRef(throttle((touchX: number, touchY: number) => {
+        maybeSendUpdate(touchX, touchY);
+    }, 50)).current;
+
+    // 创建 PanResponder 捕捉拖动事件（只作用于上半部分平面图区域）
     const panResponder = useRef(
         PanResponder.create({
             onStartShouldSetPanResponder: () => true,
             onPanResponderGrant: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
                 const { locationX, locationY } = evt.nativeEvent;
                 setCurrentPosition({ x: locationX, y: locationY });
-                updateAllFaders(locationX, locationY);
+                throttledUpdate(locationX, locationY);
             },
             onPanResponderMove: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
                 const { locationX, locationY } = evt.nativeEvent;
                 setCurrentPosition({ x: locationX, y: locationY });
-                updateAllFaders(locationX, locationY);
+                throttledUpdate(locationX, locationY);
             },
             onPanResponderRelease: () => {
-                // 根据需要在触控结束时处理逻辑
+                // 可根据需要添加触控结束逻辑
             },
         })
     ).current;
 
-    // 将扬声器的音乐厅坐标转换为屏幕坐标（用于显示），Speaker 组件尺寸为 50×50
+    // 将扬声器的音乐厅坐标转换为屏幕坐标（用于显示），假设扬声器显示尺寸为 50×50
     const screenSpeakerPositions = speakers.map(sp => {
         const screenX = offsetX + sp.x * scale;
         const screenY = offsetY + (HALL_HEIGHT - sp.y) * scale;
@@ -113,7 +133,7 @@ const DragScreen: React.FC = () => {
             {/* 上半部分：音乐厅平面图区域 */}
             <View style={styles.floorPlanContainer} {...panResponder.panHandlers}>
                 <Svg height="100%" width="100%">
-                    {/* 绘制音乐厅观众席边框 */}
+                    {/* 绘制音乐厅边框 */}
                     <Rect
                         x={offsetX}
                         y={offsetY}
@@ -133,22 +153,29 @@ const DragScreen: React.FC = () => {
                         />
                     )}
                 </Svg>
-                {/* 绘制扬声器图标（Speaker 组件） */}
+                {/* 绘制扬声器图标（这里只做简单展示） */}
                 {screenSpeakerPositions.map(sp => (
-                    <Speaker
+                    <View
                         key={sp.id}
-                        id={sp.id}
-                        x={sp.screenX - 25}
-                        y={sp.screenY - 25}
-                        selected={false}
-                        onPress={() => {}}
-                        onLongPress={() => {}}
-                    />
+                        style={{
+                            position: 'absolute',
+                            left: sp.screenX - 25,
+                            top: sp.screenY - 25,
+                            width: 50,
+                            height: 50,
+                            backgroundColor: Colors.primary,
+                            borderRadius: 25,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                        }}
+                    >
+                        <Text style={{ color: '#fff' }}>{sp.id}</Text>
+                    </View>
                 ))}
             </View>
             {/* 下半部分：控制区域 */}
             <View style={styles.controls}>
-                <TouchableOpacity style={styles.button} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.button} onPress={onClose ? onClose : () => {}}>
                     <Text style={styles.buttonText}>Close</Text>
                 </TouchableOpacity>
             </View>
@@ -166,7 +193,6 @@ const styles = StyleSheet.create({
     floorPlanContainer: {
         flex: 0.9,
         position: 'relative',
-        // 此区域采用半透明背景（不遮挡图形内容）
         opacity: 0.8,
     },
     controls: {
